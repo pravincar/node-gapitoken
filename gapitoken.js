@@ -5,7 +5,7 @@ var fs = require('fs');
 var GAPI = function(options, callback) {
 	this.token = null;
 	this.token_expires = null;
-
+    this.proxy=options.proxy;
 	this.iss = options.iss;
 	this.scope = options.scope;
 	this.sub = options.sub;
@@ -59,25 +59,25 @@ GAPI.prototype.getAccessToken = function(callback) {
         secret: this.key
     });
 
-    var post_data = 'grant_type=urn%3Aietf%3Aparams%3Aoauth%3Agrant-type%3Ajwt-bearer&assertion=' + signedJWT;
+    var post_data = 'grant_type=urn%3Aietf%3Aparams%3Aoauth%3Agrant-type%3Ajwt-bearer&assertion=' + signedJWT;    
     var post_options = {
-        host: 'accounts.google.com',
-        path: '/o/oauth2/token',
+        url: 'https://accounts.google.com/o/oauth2/token',
         method: 'POST',
+        proxy:this.proxy,
+        strictSSL:false,
+        form:{'grant_type':'urn:ietf:params:oauth:grant-type:jwt-bearer','assertion':signedJWT},
         headers: {
             'Content-Type': 'application/x-www-form-urlencoded'
         }
     };
 
     var self = this;
-    var post_req = https.request(post_options, function(res) {
-        var d = '';
-        res.setEncoding('utf8');
-        res.on('data', function(chunk) {
-            d += chunk;
-        });
-
-        res.on('end', function() {
+    var post_req = request(post_options, function(err,res,body) {
+        if(err){self.token = null;
+            self.token_expires = null;
+            callback(err, null);
+        }else {
+            var d=body;
             try {
                 d = JSON.parse(d);
                 if (d.error) {
@@ -92,15 +92,8 @@ GAPI.prototype.getAccessToken = function(callback) {
             } catch (e) {
                 callback(e, null);
             }
-        });
-    }).on('error', function(err) {
-            self.token = null;
-            self.token_expires = null;
-            callback(err, null);
+        }    
     });
-
-    post_req.write(post_data);
-    post_req.end();	
 };
 
 module.exports = GAPI;
